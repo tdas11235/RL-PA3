@@ -23,81 +23,12 @@ class BaseOption:
         self.alpha = alpha
         self.gamma = gamma
         self.grid_shape = (5, 5)
-        self.walls = self._extract_walls()
 
     def _is_terminal(self, state):
         raise NotImplementedError
 
     def _is_valid(self, state):
         return True
-    
-    def _extract_walls(self):
-        walls = set()
-        desc = self.env.unwrapped.desc
-        for r in range(5):
-            for c in range(5):
-                # Right wall
-                if desc[r][2 * c + 2] == b"|":
-                    walls.add(((r, c), (r, c + 1)))
-                    walls.add(((r, c + 1), (r, c)))
-                # Bottom wall
-                if desc[r + 1][2 * c] == b"-":
-                    walls.add(((r, c), (r + 1, c)))
-                    walls.add(((r + 1, c), (r, c)))
-        return walls
-    
-    def _get_neighbors(self, r, c):
-        neighbors = []
-        taxi_rowcol_to_state = lambda row, col: self.env.unwrapped.encode(row, col, 0, 0)
-        state = taxi_rowcol_to_state(r, c)
-        for action in range(4):  # Only consider movement actions: 0=South, 1=North, 2=East, 3=West
-            transitions = self.env.P[state][action]
-            for prob, next_state, reward, done in transitions:
-                if prob > 0.0:
-                    nr, nc, _, _ = decode_state(next_state)
-                    neighbors.append(((nr, nc), action))
-        return neighbors
-    
-    def _dijkstra(self, start, goal):
-        heap = [(0, start, [])]
-        visited = set()
-        while heap:
-            cost, current, path = heapq.heappop(heap)
-            if current in visited:
-                continue
-            visited.add(current)
-            # list of actions
-            if current == goal:
-                return path
-            for neighbor, action in self._get_neighbors(*current):
-                if neighbor not in visited:
-                    heapq.heappush(heap, (cost + 1, neighbor, path + [action]))
-        return []
-
-    def execute(self, state):
-        taxi_row, taxi_col, _, _ = decode_state(state)
-        print(f"{self.name} invoked")
-        path = self._dijkstra((taxi_row, taxi_col), self.target_location)
-        total_reward = 0
-        cum_rew = 0
-        steps = 0
-        done = False
-        print("Start State", decode_state(state))
-        print(path)
-        for action in path:
-            if done:
-                break
-            next_state, reward, terminated, truncated, _ = self.env.step(
-                action)
-            done = terminated or truncated
-            state = next_state
-            total_reward += (self.gamma ** steps) * reward
-            cum_rew += reward
-            steps += 1
-        print(f"Reward: {cum_rew}, Steps: {steps}")
-        print("End State", decode_state(state))
-        return state, total_reward, steps, done, terminated, truncated, cum_rew
-    
 
 class GoToOption(BaseOption):
     def __init__(self, location_name, env, policy, alpha=0.1, gamma=0.99):
